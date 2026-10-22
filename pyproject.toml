@@ -13,6 +13,8 @@ dependencies = [
     # cloud-native access (sources.py, forcing.py)
     "pystac-client>=0.7", "planetary-computer>=1.0", "odc-stac>=0.3.9", "xarray>=2024.1", "dask>=2024.1",
     "zarr>=2.16", "adlfs>=2024.1", "fsspec>=2024.1",
+    # data fetchers (fetch_firms.py, fetch_peat_extent.py)
+    "pyogrio>=0.7", "pillow>=10",
 ]
 
 [tool.setuptools.packages.find]

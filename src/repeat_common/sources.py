@@ -165,8 +165,18 @@ def static_cloud(key, grid: Grid, scfg) -> np.ndarray:
     items = sorted(items, key=lambda i: str(i.datetime or i.properties.get("start_datetime")))
     ds = odc.stac.load(items, bands=[c["asset"]], geobox=_geobox(grid), resampling="nearest",
                        groupby="id", chunks={"x": 2048, "y": 2048})
-    arr = ds[c["asset"]].isel(time=-1) if "time" in ds.dims else ds[c["asset"]]
-    return arr.compute().values.astype("float32")
+    da = ds[c["asset"]]
+    if "time" not in da.dims:
+        return da.compute().values.astype("float32")
+    # One slice per STAC item (a tile, or a tile in another release). A KHG on a tile boundary needs all of them, so they
+    # are mosaicked oldest to newest: a newer item overrides where it has data. In WorldCover 0 is "no data"; in the
+    # JRC seasonality 0 is a real value (never water), so only NaN counts as missing there.
+    stack = da.compute().values.astype("float32")
+    out = np.full(stack.shape[1:], np.nan, "float32")
+    for a in stack:
+        ok = np.isfinite(a) & ((a != 0) if key == "worldcover" else True)
+        out = np.where(ok, a, out)
+    return out
 
 
 def deficit_cloud(years, months, grid: Grid, scfg, cache: Path | None = None) -> dict:
