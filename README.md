@@ -10,6 +10,8 @@ Shared code of the RE-PEAT modules (GitHub org Re-Peat-Project). A library: othe
 | `repeat_common.tma` | SiTMAT / CSV water-table reader (canonical table `station_id, date, depth_m, lon, lat`, depth positive down) and per-unit TMA indicators |
 | `repeat_common.fetch_firms` | download the FIRMS country archive (VIIRS S-NPP, yearly CSV) and combine it into one GeoPackage in `REPEAT_DATA`: `python -m repeat_common.fetch_firms`. One file at a time, with a pause and retries |
 | `repeat_common.fetch_peat_extent` | build a peat-extent GeoTIFF (GFW global peatland extent, a composite; for Indonesia the union of Miettinen et al. 2016 and Gumbricht et al. 2017) from the public tile cache, only for tiles that touch a KHG: `python -m repeat_common.fetch_peat_extent` |
+| `repeat_common.fetch_klhk_peat` | KLHK KHG and FEG 1:50,000 layers (BIG Satu Peta mirror; carries KHG set after SK.129/2017) into `klhk_khg_feg_50k.gpkg`: `python -m repeat_common.fetch_klhk_peat [--bbox XMIN YMIN XMAX YMAX]`. `fetch_peat_extent --extra klhk_khg_feg_50k.gpkg:khg` then adds their GFW tiles |
+| `repeat_common.fetch_metar` | airport METAR (visibility, wind, smoke codes) from the Iowa Environmental Mesonet archive: `python -m repeat_common.fetch_metar --station WAOO`. One year per request, with a pause |
 | `repeat_common.config` | `deep_update`, `expand_env` (`${REPEAT_DATA}` in configs) |
 | `repeat_common.htmlkit` | shared parts of the HTML dashboards |
 

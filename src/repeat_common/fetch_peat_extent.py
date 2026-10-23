@@ -9,6 +9,7 @@ can exceed either source alone. The Miettinen paper covers Peninsular Malaysia, 
 Gumbricht et al. 2017 (a modelled map). The full-resolution download needs a free GFW API key; the tile cache does not, but it is a
 256 px picture per tile, so zoom 11 (about 76 m) is what we take. Cells with partial transparency count as peat (alpha > 0).
 Only tiles that touch a KHG boundary are fetched, one at a time with a pause; tiles already in the output are skipped.
+--extra adds boundaries not in batas_khg_indonesia.gpkg (KHG set after SK.129/2017, for example from fetch_klhk_peat).
 Output: <DATA_DIR>/peat_extent_gfw_v20230315_z<zoom>.tif, EPSG:3857, uint8: 1 = peat, 0 = no peat, 255 = tile not fetched.
 """
 import argparse
@@ -78,25 +79,39 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("data", nargs="?")
     ap.add_argument("--zoom", type=int, default=11)
+    ap.add_argument("--extra", nargs="*", default=[], metavar="GPKG[:LAYER]",
+                    help="more boundaries whose tiles are fetched too (KHG set after SK.129/2017); they must fall inside the existing raster")
     a = ap.parse_args()
     data = a.data or os.environ.get("REPEAT_DATA")
     if not data:
         raise SystemExit("give the data folder as an argument or set REPEAT_DATA")
     data = Path(data)
     z = a.zoom
-    khg = pyogrio.read_dataframe(data / "batas_khg_indonesia.gpkg", read_geometry=True)
-    tiles = needed_tiles(shapely.make_valid(khg.geometry.values), z)
-    xs, ys = [t[0] for t in tiles], [t[1] for t in tiles]
-    x0, y0 = min(xs), min(ys)
-    W, H = (max(xs) - x0 + 1) * 256, (max(ys) - y0 + 1) * 256
+    geoms = list(pyogrio.read_dataframe(data / "batas_khg_indonesia.gpkg", read_geometry=True).geometry.values)
+    for e in a.extra:
+        path, _, layer = e.partition(":")
+        geoms += list(pyogrio.read_dataframe(path, layer=layer or None, read_geometry=True).to_crs(4326).geometry.values)
+    tiles = needed_tiles(shapely.make_valid(geoms), z)
     size = 2 * ORIGIN / 2 ** z
     res = size / 256
     out = data / f"peat_extent_gfw_v20230315_z{z}.tif"
-    prof = dict(driver="GTiff", width=W, height=H, count=1, dtype="uint8", crs="EPSG:3857", nodata=255, tiled=True,
-                blockxsize=256, blockysize=256, compress="lzw", transform=from_origin(-ORIGIN + x0 * size, ORIGIN - y0 * size, res, res))
     state = out.with_suffix(".done")
     done = set(state.read_text().split()) if state.exists() and out.exists() else set()
     mode = "r+" if out.exists() and done else "w"
+    if mode == "r+":
+        # keep the grid of the raster on disk; extra tiles must lie inside it
+        with rasterio.open(out) as src:
+            x0, y0 = round((src.transform.c + ORIGIN) / size), round((ORIGIN - src.transform.f) / size)
+            W, H = src.width, src.height
+        outside = [t for t in tiles if not (x0 <= t[0] < x0 + W // 256 and y0 <= t[1] < y0 + H // 256)]
+        if outside:
+            raise SystemExit(f"{len(outside)} tiles fall outside the existing raster; rebuild it from scratch")
+    else:
+        xs, ys = [t[0] for t in tiles], [t[1] for t in tiles]
+        x0, y0 = min(xs), min(ys)
+        W, H = (max(xs) - x0 + 1) * 256, (max(ys) - y0 + 1) * 256
+    prof = dict(driver="GTiff", width=W, height=H, count=1, dtype="uint8", crs="EPSG:3857", nodata=255, tiled=True,
+                blockxsize=256, blockysize=256, compress="lzw", transform=from_origin(-ORIGIN + x0 * size, ORIGIN - y0 * size, res, res))
     todo = [t for t in tiles if f"{t[0]}/{t[1]}" not in done]
     print(f"{len(tiles)} tiles at zoom {z}; {len(done)} already done; raster {W}x{H}", flush=True)
     for start in range(0, len(todo), BATCH):
