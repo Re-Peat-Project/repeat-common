@@ -17,5 +17,9 @@ dependencies = [
     "pyogrio>=0.7", "pillow>=10",
 ]
 
+[project.optional-dependencies]
+# Google Earth Engine bridge (gee.py); needs `earthengine authenticate` once per machine
+gee = ["earthengine-api>=1.0"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
