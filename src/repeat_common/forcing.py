@@ -81,7 +81,7 @@ def unit_weights(label: np.ndarray, n_units: int, grid: Grid, transform: Affine,
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# Finer rain and evaporation than ERA5 (a test: neraca.forcing.rain / .evap, or `repeat_neraca.bucket.run --rain chirps --evap wapor`)
+# Finer rain and evaporation than ERA5 (a test of the retired repeat-neraca bucket experiments; the neraca balance now reads CHIRPS and WaPOR through repeat_common.fetch_gee_balance)
 #   chirps  CHIRPS v3 daily, 0.05 degrees (about 5 km), mm/day, read window by window from data.chc.ucsb.edu (UTC days)
 #   wapor   FAO WaPOR v3 level 1 actual evapotranspiration and interception, dekadal, 0.0029 degrees (about 300 m), mm/day,
 #           read from the public bucket; every day of a dekad gets the value of that dekad

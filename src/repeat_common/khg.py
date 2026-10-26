@@ -5,7 +5,8 @@
     khg.folder("16.02.01")                               # same folder, by code
 
 The code comes from re-peat/sites/khg_registry.csv (SK.129/MENLHK/2017) without the "KHG." prefix; the name part is the
-KHG name in lower case without "KHG" and "Sungai", words joined by "_". The root is $REPEAT_KHG, else <workspace>/_khg.
+KHG name in lower case without "KHG" and "Sungai", words joined by "_". The root is $REPEAT_KHG, else <workspace>/_khg; the registry is
+read from $REPEAT_HUB/sites/, else <workspace>/re-peat/sites/.
 """
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ import re
 from pathlib import Path
 
 WORKSPACE = Path(__file__).resolve().parents[3]
-REGISTRY = WORKSPACE / "re-peat" / "sites" / "khg_registry.csv"
+REGISTRY = Path(os.environ.get("REPEAT_HUB") or WORKSPACE / "re-peat") / "sites" / "khg_registry.csv"   # REPEAT_HUB when installed outside the workspace
 STEPS = ["00_inputs", "01_dem", "02_delineation", "03_neraca", "04_prioritisation", "05_pump", "cache", "logs"]
 
 
