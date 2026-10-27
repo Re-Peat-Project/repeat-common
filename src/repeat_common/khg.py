@@ -18,6 +18,10 @@ from pathlib import Path
 WORKSPACE = Path(__file__).resolve().parents[3]
 REGISTRY = Path(os.environ.get("REPEAT_HUB") or WORKSPACE / "re-peat") / "sites" / "khg_registry.csv"   # REPEAT_HUB when installed outside the workspace
 STEPS = ["00_inputs", "01_dem", "02_delineation", "03_neraca", "04_prioritisation", "05_pump", "cache", "logs"]
+# The full chain runs once per DEM (decided 2026-10-27): each DEM gets its own sub-KHG units, neraca, prioritisation and sekat.
+# LiDAR where it covers the KHG, DeltaDTM and DEMNAS after the repeat-dem correction (ICESat-2 class offsets + smoothing).
+DEMS = ("lidar", "deltadtm", "demnas")
+PER_DEM_STEPS = ("02_delineation", "03_neraca", "04_prioritisation", "05_pump")
 
 
 def root() -> Path:
@@ -64,3 +68,16 @@ def folder(name_or_code: str, create: bool = False) -> Path:
         for s in STEPS:
             (p / s).mkdir(parents=True, exist_ok=True)
     return p
+
+
+def step_dir(name_or_code: str, step: str, dem: str | None = None) -> Path:
+    """Folder of one step of a KHG: ``<khg>/<step>/<dem>/`` for the steps that depend on the DEM (``PER_DEM_STEPS``) when ``dem`` is
+    given, else ``<khg>/<step>/`` (the steps that do not depend on it, and the single-DEM outputs made before 2026-10-27, which stay
+    where they are). In 03_neraca the DEM folder holds that variant's ``inputs/`` and ``runs/``; the KHG deficit
+    (``03_neraca/runs/deficit``, SiTMAT stations and ERA5) does not use the DEM and is shared."""
+    base = folder(name_or_code) / step
+    if dem is None or step not in PER_DEM_STEPS:
+        return base
+    if dem not in DEMS:
+        raise ValueError(f"unknown DEM variant {dem!r}; one of {', '.join(DEMS)}")
+    return base / dem

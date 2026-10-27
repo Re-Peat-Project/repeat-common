@@ -48,3 +48,14 @@ def test_whole_khg_unit_matches_names_with_different_spacing():
     u = khg_unit(b, "NAMA_KHG", {"name": "KHG Sungai Pungurbesar - Sungai Kapuas", "khg_code": "KHG.61.12-71.01"})
     assert list(u["unit_id"]) == ["KHG.61.12-71.01"] and u.geometry.iloc[0].area == pytest.approx(2.0)
     assert khg_unit(b, "NAMA_KHG", {"name": "KHG Missing", "khg_code": "x"}).empty
+
+
+def test_units_key_tells_unit_sets_apart_and_ignores_row_order():
+    """Two unit sets of one KHG (the DEM variants) must never read each other's cached years."""
+    import geopandas as gpd
+    from shapely.geometry import box
+    from repeat_common.fetch_gee_balance import units_key
+    a = gpd.GeoDataFrame({"unit_id": ["U1", "U2"]}, geometry=[box(0, 0, 1, 1), box(1, 0, 2, 1)], crs=4326)
+    b = gpd.GeoDataFrame({"unit_id": ["U1", "U2"]}, geometry=[box(0, 0, 1.5, 1), box(1.5, 0, 2, 1)], crs=4326)
+    assert units_key(a) == units_key(a.iloc[::-1]) != units_key(b)
+    assert units_key("users/x/table") != units_key("users/x/other")

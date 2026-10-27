@@ -25,7 +25,8 @@ Written into --out:
   units_landcover.csv            unit_id, area_km2, wc_<class> (share of the unit in each ESA WorldCover v200 class, 10 m;
                                  each unit is cut into 0.1 degree pieces so no request times out)
 Each year is fetched separately and kept in --cache (default `<khg folder>/cache/gee_balance`, or `<out>/_gee_cache`), so
-a failed run resumes. Delete the cache to refetch.
+a failed run resumes. Delete the cache to refetch. Cached files carry a fingerprint of the units (ids and geometry), so two unit
+sets of one KHG (e.g. the DEM variants, `--dem`) never share a cached year.
 """
 from __future__ import annotations
 
@@ -157,12 +158,25 @@ def fetch_year(ee, fc, name: str, year: int, start: date, end: date, step: str) 
     return pd.DataFrame(rows)
 
 
-def fetch(ee, fc, name: str, start: date, end: date, step: str, cache: Path, workers: int = 4) -> pd.DataFrame:
+def units_key(units) -> str:
+    """Short fingerprint of a unit set: unit ids and geometry (a GeoDataFrame), or the table id (an Earth Engine asset)."""
+    import hashlib
+    h = hashlib.sha1()
+    if isinstance(units, str):
+        h.update(units.encode())
+    else:
+        idc = "unit_id" if "unit_id" in units else units.columns[0]
+        for uid, g in sorted(zip(units[idc].astype(str), units.geometry.to_wkb()), key=lambda t: t[0]):
+            h.update(uid.encode()); h.update(g)
+    return h.hexdigest()[:10]
+
+
+def fetch(ee, fc, name: str, start: date, end: date, step: str, cache: Path, workers: int = 4, key: str = "") -> pd.DataFrame:
     from concurrent.futures import ThreadPoolExecutor
     cache.mkdir(parents=True, exist_ok=True)
 
     def one(y):
-        f = cache / f"{name}_{step}_{y}_{start}_{end}.csv"
+        f = cache / f"{name}_{step}_{y}_{start}_{end}{'_' + key if key else ''}.csv"
         if not f.exists():
             print(f"{name} {y}", flush=True)
             fetch_year(ee, fc, name, y, start, end, step).to_csv(f, index=False)
@@ -224,6 +238,7 @@ def main(argv=None):
     src.add_argument("--khg", help="KHG name or code; units and output folder from the _khg work folder")
     src.add_argument("--units", help="polygon file or Earth Engine table id")
     ap.add_argument("--whole-khg", action="store_true", help="with --khg: the whole KHG as one unit")
+    ap.add_argument("--dem", help="with --khg: the units of this DEM variant (02_delineation/<dem>/), written to 03_neraca/<dem>/inputs/")
     ap.add_argument("--id-field", default="unit_id")
     ap.add_argument("--products", default="chirps,wapor", help=", ".join(PRODUCTS))
     ap.add_argument("--start", default="2018-01-01")
@@ -250,22 +265,24 @@ def main(argv=None):
                 raise SystemExit(f"{r['name']} not in {gee.BOUNDARY[0]}")
             out, cache = Path(a.out or kf / "03_neraca" / "inputs" / "khg_level"), Path(a.cache or kf / "cache" / "gee_balance_khg_level")
         else:
-            units, out, cache = str(kf / "02_delineation" / "subkhg_units.gpkg"), Path(a.out or kf / "03_neraca" / "inputs"), Path(a.cache or kf / "cache" / "gee_balance")
+            units = str(K.step_dir(a.khg, "02_delineation", a.dem) / "subkhg_units.gpkg")
+            out, cache = Path(a.out or K.step_dir(a.khg, "03_neraca", a.dem) / "inputs"), Path(a.cache or kf / "cache" / "gee_balance")
     else:
         units, out = a.units, Path(a.out or ".")
         cache = Path(a.cache or out / "_gee_cache")
     if isinstance(units, str) and Path(units).suffix.lower() in (".gpkg", ".shp", ".geojson"):
         import geopandas as gpd
         units = gpd.read_file(units)
+    key = units_key(units)
     fc = _units_fc(ee, units, a.id_field)
     out.mkdir(parents=True, exist_ok=True)
     start, end = date.fromisoformat(a.start), date.fromisoformat(a.end)
     for name in [s.strip() for s in a.products.split(",") if s.strip()]:
-        d = fetch(ee, fc, name, start, end, a.step, cache, a.workers)
+        d = fetch(ee, fc, name, start, end, a.step, cache, a.workers, key)
         f = out / f"balance_{name}_{a.step}.csv"
         d.to_csv(f, index=False, float_format="%.3f")
-        chunks = sorted(cache.glob(f"{name}_{a.step}_*_{start}_{end}.csv"))
-        meta = {**PRODUCTS[name], "product": name, "step": a.step, "start": str(start), "end": str(end), "units": str(a.units or a.khg),
+        chunks = sorted(cache.glob(f"{name}_{a.step}_*_{start}_{end}_{key}.csv"))
+        meta = {**PRODUCTS[name], "product": name, "step": a.step, "start": str(start), "end": str(end), "units": str(a.units or a.khg), "units_key": key, "dem": a.dem,
                 "earthengine_api": ee.__version__, "written": str(date.today()),
                 "fetched": {c.name: date.fromtimestamp(c.stat().st_mtime).isoformat() for c in chunks}}
         f.with_suffix(".json").write_text(json.dumps(meta, indent=2), encoding="utf-8")

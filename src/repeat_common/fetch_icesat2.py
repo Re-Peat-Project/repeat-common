@@ -73,7 +73,8 @@ def main():
     a = ap.parse_args()
     data = Path(a.data or os.environ.get("REPEAT_DATA") or Path(__file__).resolve().parents[3] / "_data")
     b = gpd.read_file(data / BOUNDARY[0], layer=BOUNDARY[1])
-    sel = b[b[BOUNDARY[2]] == a.khg]
+    norm = lambda s: " ".join(str(s).split())          # the boundary file has double spaces in some names
+    sel = b[b[BOUNDARY[2]].map(norm) == norm(a.khg)]
     if sel.empty:
         sys.exit(f"KHG not found: {a.khg}")
     aoi = sel.to_crs(sel.estimate_utm_crs()).buffer(a.buffer_m).to_crs(4326).union_all()
