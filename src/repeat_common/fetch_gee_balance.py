@@ -44,6 +44,9 @@ PRODUCTS = {
     "wapor":            {"collection": "FAO/WAPOR/3/L1_AETI_D", "band": "L1-AETI-D", "scale": 0.1, "kind": "rate", "length": "dekad", "var": "ET"},
     "mod16":            {"collection": "MODIS/061/MOD16A2GF", "band": "ET", "scale": 0.1, "kind": "total", "length": "mod16", "var": "ET",
                          "valid_max": 32700},    # 32761-32767 are fill codes (water, urban, barren...)
+    # the same MOD16 v061 without gap filling: 2021 to the latest composite (the gap-filled product ends in 2025-12)
+    "mod16nrt":         {"collection": "MODIS/061/MOD16A2", "band": "ET", "scale": 0.1, "kind": "total", "length": "mod16", "var": "ET",
+                         "valid_max": 32700},
     # reference rain for checks: IMERG Final monthly, merged satellite-gauge, mm/hr (x 24 = mm/day), 0.1 degree, 1998 to 2025-09
     "imerg":            {"collection": "NASA/GPM_L3/IMERG_MONTHLY_V07", "band": "precipitation", "scale": 24.0, "kind": "rate", "length": "month", "var": "P"},
     "terraclimate_pr":  {"collection": "IDAHO_EPSCOR/TERRACLIMATE", "band": "pr", "scale": 1.0, "kind": "total", "length": "month", "var": "P"},
