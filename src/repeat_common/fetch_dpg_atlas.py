@@ -5,7 +5,8 @@
 Source: Badan Restorasi Gambut, Atlas Desa Peduli Gambut, one PDF per province (Riau, Jambi, Sumsel, Kalbar, Kalteng, Kalsel),
 hosted by Djoko Luknanto (UGM) at https://luk.staff.ugm.ac.id/rawa/BRG/atlas/ (introduction: isi.html). The atlases hold
 participatory village maps as images, not vector data. Also fetched: the cover JPG per province and the village index JPG
-(indeks/). No national DPG/DMPG vector layer was found online (2026-10-26); the Sumsel provincial GeoNode
+(indeks/). No national DPG/DMPG vector layer was found online on 2026-10-26; on 2026-10-28 the SiTMAT portal was found to serve one
+(repeat_common.fetch_sitmat_layers). The Sumsel provincial GeoNode
 (datagambut.sumselprov.go.id, layers geonode:BRGM_DPG2017..2021) lists vectors but its WFS fails server side.
 Files already present with the server's size are skipped. One request at a time with a pause.
 After the download, the village list is read from each atlas: the table of contents (Daftar Isi) gives desa, kecamatan,
