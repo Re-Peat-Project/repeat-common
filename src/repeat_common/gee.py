@@ -31,6 +31,8 @@ from rasterio.transform import Affine
 
 BOUNDARY = ("batas_khg_indonesia.gpkg", "nama__khg__indonesia__2017__rev_tipologi", "NAMA_KHG")
 MAX_BYTES = 40 * 1024 * 1024  # below the 48 MB computePixels limit
+# Earth Engine names the MODIS sinusoidal grid SR-ORG:6974, which PROJ does not know; the request keeps that name, the file gets this
+SR_ORG = {"SR-ORG:6974": "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs"}
 
 
 def init(project=None):
@@ -53,16 +55,18 @@ def native_grid(img, crs=None, transform=None):
     return p["crs"], p["transform"]
 
 
-def to_geotiff(img, region_ll, dest, crs=None, transform=None, dtype=None, nodata=None, source=None):
+def to_geotiff(img, region_ll, dest, crs=None, transform=None, dtype=None, nodata=None, source=None, max_bytes=MAX_BYTES):
     """Write img over region_ll (shapely geometry, EPSG:4326) to dest on the image's native grid.
-    source: asset id for the tags (operations such as unmask() drop system:id)."""
+    source: asset id for the tags (operations such as unmask() drop system:id).
+    max_bytes: size of one request; lower it for images that Earth Engine returns wider than dtype (e.g. 4 bytes per int16 pixel)."""
     import ee
     from pyproj import Transformer
     crs, t = native_grid(img, crs, transform)
+    file_crs = SR_ORG.get(crs, crs)
     a, b, c, d, e, f = t
     if b or d:
         sys.exit("Rotated grids are not supported.")
-    x0, y0, x1, y1 = Transformer.from_crs(4326, crs, always_xy=True).transform_bounds(*region_ll.bounds)
+    x0, y0, x1, y1 = Transformer.from_crs(4326, file_crs, always_xy=True).transform_bounds(*region_ll.bounds)
     c0, c1 = math.floor((x0 - c) / a), math.ceil((x1 - c) / a)
     r0, r1 = math.floor((y1 - f) / e), math.ceil((y0 - f) / e)  # e < 0
     W, H = c1 - c0, r1 - r0
@@ -70,14 +74,14 @@ def to_geotiff(img, region_ll, dest, crs=None, transform=None, dtype=None, nodat
     info = img.select(0).getInfo()["bands"][0]["data_type"]
     np_dtype = np.dtype(dtype or {"float": "float32", "double": "float64"}.get(info.get("precision"), "float32"))
     n_b = len(bands)
-    side = int(math.sqrt(MAX_BYTES / (np_dtype.itemsize * n_b)))
+    side = int(math.sqrt(max_bytes / (np_dtype.itemsize * n_b)))
     side = max(256, (side // 256) * 256)
     out_t = Affine(a, 0, c + c0 * a, 0, e, f + r0 * e)
     dest = Path(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
     prog = dest.with_suffix(".progress")
     done = set(json.loads(prog.read_text())) if prog.exists() and dest.exists() else set()
-    prof = {"driver": "GTiff", "width": W, "height": H, "count": n_b, "dtype": np_dtype.name, "crs": crs, "transform": out_t,
+    prof = {"driver": "GTiff", "width": W, "height": H, "count": n_b, "dtype": np_dtype.name, "crs": file_crs, "transform": out_t,
             "compress": "deflate", "tiled": True, "blockxsize": 256, "blockysize": 256, "BIGTIFF": "IF_SAFER",
             "nodata": nodata}
     mode = "r+" if done else "w"
