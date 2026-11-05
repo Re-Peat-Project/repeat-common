@@ -15,6 +15,7 @@ Shared code of the RE-PEAT modules (GitHub org Re-Peat-Project). A library: othe
 | `repeat_common.fetch_open_dem` | open DEMs and layers for a KHG: `--product glo30 fabdem worldcover chm gedtm30` (default `glo30 fabdem`) into `dem/open/<product>/` (chm into `canopy/meta_chm_v1/`) |
 | `repeat_common.fetch_icesat2` | ICESat-2 ATL08 ground heights for a KHG from SlideRule into `icesat2/` (`--t0`, `--t1`; needs `sliderule`) |
 | `repeat_common.fetch_gedi` | GEDI L2A ground elevations for a KHG from Earth Engine into `gedi/` (`--min-sensitivity` 0.98) |
+| `repeat_common.fetch_forest_type` | ForTy 2020 forest typology (10 m, class probabilities) and JRC TMF v1_2025 annual changes (~30 m) for a KHG from Earth Engine into `forest_type/` (`--only forty|tmf`) |
 | `repeat_common.fetch_dpg_atlas` | BRG Atlas Desa Peduli Gambut PDFs into `dpg/atlas_brg/` and the village list `dpg/dpg_atlas_villages.csv` (needs `pypdf`) |
 | `repeat_common.fetch_dpg_boundaries` | village boundaries for the atlas villages (KLH 2023, then BIG) into `dpg/dpg_villages_boundaries.gpkg` |
 | `repeat_common.fetch_sitmat_layers` | map layers of the KLH SiTMAT portal: the 2025 peat map into `peat/lahan_gambut_indonesia_2025.gpkg` and the national DMPG village boundaries into `dpg/dmpg_villages_sitmat.gpkg` (raw GeoJSON kept in `raw/sitmat_api/`): `python -m repeat_common.fetch_sitmat_layers [--layers peat_2025 dmpg] [--refresh]` |
