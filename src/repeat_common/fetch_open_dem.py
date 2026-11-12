@@ -13,7 +13,8 @@ Products (1-degree tiles are kept whole, under the upstream file name; nothing i
 - chm: Meta/WRI global canopy height v1 (Tolan et al. 2024; 1 m, quadkey zoom-9 COG tiles on AWS dataforgood-fb-data,
   CC BY 4.0), the canopy layer repeat-dem subtracts; tiles touching the KHG plus --buffer-m.
 - gedtm30: GEDTM30 v1.1 30 m (OpenGeoHub; Ho et al. 2025), one global COG; the window over the KHG (plus --buffer-m) is cut
-  at native resolution, with the per-cell uncertainty layer (std). Licence CC BY 4.0. In 2026-10 the host's TLS certificate
+  at native resolution, with the per-cell uncertainty layer (std). Values are int32 with the upstream band scale kept
+  (m layer: decimetres, scale 0.1; heights on EGM2008, EPSG:3855). Licence CC BY 4.0. In 2026-10 the host's TLS certificate
   had expired; the fetch then stops with that error rather than skipping verification.
 Tiles already present are skipped. One request at a time with a pause.
 """
@@ -78,7 +79,18 @@ def cut_cog(url, bounds, dest):
                                 "compress": "deflate", "tiled": True, "blockxsize": 512, "blockysize": 512, "BIGTIFF": "IF_SAFER"}
             with rasterio.open(dest, "w", **prof) as o:
                 o.write(a, 1)
-                o.update_tags(source=url, window_bounds=",".join(map(str, bounds)), scales=",".join(map(str, d.scales)))
+                o.scales, o.offsets = d.scales, d.offsets
+                o.update_tags(source=url, window_bounds=",".join(map(str, bounds)), scales=",".join(map(str, d.scales)),
+                              **{k: v for k, v in d.tags().items() if k == "VERTICAL_DATUM"})
+
+
+def set_band_scale(dest):
+    """Files cut before the band scale was carried over: set it from the `scales` tag written at the cut (values untouched)."""
+    with rasterio.open(dest, "r+") as o:
+        s = float(o.tags().get("scales", "1").split(",")[0])
+        if o.scales[0] != s:
+            o.scales = (s,)
+            print(f"{dest.name}: band scale set to {s}", flush=True)
 
 
 def main():
@@ -116,6 +128,7 @@ def main():
                     dest = out / f"gedtm30_v1.1_{layer}_{slug}.tif"
                     if not dest.exists():
                         cut_cog(GEDTM.format(layer=layer), geom.bounds, dest)
+                    set_band_scale(dest)
                     print(f"{k}: {dest.name}", flush=True)
                 continue
             step = 3 if p == "worldcover" else 1
