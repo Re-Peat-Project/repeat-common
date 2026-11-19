@@ -26,7 +26,10 @@ Written into --out:
                                  each unit is cut into 0.1 degree pieces so no request times out)
 Each year is fetched separately and kept in --cache (default `<khg folder>/cache/gee_balance`, or `<out>/_gee_cache`), so
 a failed run resumes. Delete the cache to refetch. Cached files carry a fingerprint of the units (ids and geometry), so two unit
-sets of one KHG (e.g. the DEM variants, `--dem`) never share a cached year.
+sets of one KHG (e.g. the DEM variants, `--dem`) never share a cached year. When --out already holds every product for the
+same units (fingerprint in the .json), step and period, and the land-cover table for the same unit ids, the run stops without
+contacting Earth Engine and leaves the files as they are (inputs fetched on another machine and imported with
+re-peat/tools/peer_gee_kit.py).
 """
 from __future__ import annotations
 
@@ -235,6 +238,27 @@ def landcover(ee, fc, workers: int = 8) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def complete(out: Path, products: list, step: str, start: date, end: date, key: str, units, landcover: bool, id_field: str) -> bool:
+    """True when `out` already holds every product for these units, step and period (the .json records them) and, if asked,
+    a land-cover table with the same unit ids: then nothing needs Earth Engine (e.g. inputs fetched elsewhere and imported)."""
+    for name in products:
+        f = out / f"balance_{name}_{step}.csv"
+        m = f.with_suffix(".json")
+        if not (f.is_file() and m.is_file()):
+            return False
+        meta = json.loads(m.read_text(encoding="utf-8"))
+        if (meta.get("units_key"), meta.get("step"), meta.get("start"), meta.get("end")) != (key, step, str(start), str(end)):
+            return False
+    if landcover:
+        f = out / "units_landcover.csv"
+        if not f.is_file() or isinstance(units, str):
+            return False
+        idc = id_field if id_field in units else "unit_id"
+        if set(pd.read_csv(f, dtype={"unit_id": str})["unit_id"]) != set(units[idc].astype(str)):
+            return False
+    return True
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     src = ap.add_mutually_exclusive_group(required=True)
@@ -254,7 +278,6 @@ def main(argv=None):
     ap.add_argument("--workers", type=int, default=4, help="years fetched at the same time")
     a = ap.parse_args(argv)
     from . import gee
-    ee = gee.init(a.project or os.environ.get("EE_PROJECT"))
     if a.khg:
         from . import khg as K
         kf = K.folder(a.khg)
@@ -277,10 +300,15 @@ def main(argv=None):
         import geopandas as gpd
         units = gpd.read_file(units)
     key = units_key(units)
+    start, end = date.fromisoformat(a.start), date.fromisoformat(a.end)
+    products = [s.strip() for s in a.products.split(",") if s.strip()]
+    if complete(out, products, a.step, start, end, key, units, not a.no_landcover, a.id_field):
+        print(f"{out}: inputs complete for these units ({key}), products and period; nothing fetched")
+        return
+    ee = gee.init(a.project or os.environ.get("EE_PROJECT"))
     fc = _units_fc(ee, units, a.id_field)
     out.mkdir(parents=True, exist_ok=True)
-    start, end = date.fromisoformat(a.start), date.fromisoformat(a.end)
-    for name in [s.strip() for s in a.products.split(",") if s.strip()]:
+    for name in products:
         d = fetch(ee, fc, name, start, end, a.step, cache, a.workers, key)
         f = out / f"balance_{name}_{a.step}.csv"
         d.to_csv(f, index=False, float_format="%.3f")
